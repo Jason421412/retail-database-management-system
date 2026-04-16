@@ -1,5 +1,11 @@
 # Restaurant Operations Database System
 
+## Entity Relationship Diagram
+
+The following ERD summarizes the core entities and relationships implemented in this database system.
+
+![Entity Relationship Diagram](assets/erd.png)
+
 ## Overview
 A comprehensive relational database system engineered to manage and automate daily restaurant operations, including order processing, item tracking, and automated billing calculations. Built using Oracle SQL, this project demonstrates advanced schema design, data integrity enforcement, and automated transaction logic.
 
