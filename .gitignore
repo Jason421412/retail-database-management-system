@@ -1,0 +1,67 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sw?
+
+# Application specific files
+*.log
+*.bak
+*.tmp
+*.dmp
+*.sqlite
+*.db
+
+# Large Media Files (Too heavy for Github repos)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wmv
+
+# Academic, Administration & Redundant Files
+# We only want to showcase the final design PDFs, so ignore Word files
+*.doc
+*.docx
+*.rtf
+
+# Explicitly exclude common academic grading terminology
+*rubric*
+*Rubric*
+*evaluation*
+*Evaluation*
+*peer*
+*Peer*
+*script*
+*Script*
+
+# Temporary MS Office Files
+~$*.doc
+~$*.docx
+~$*.pptx
+~$*.pdf
+
+# ---------------------------------------------------------------------------
+# EXCEPTIONS - Ensure the core repository files are ALWAYS tracked
+# ---------------------------------------------------------------------------
+!sql/
+!sql/*.sql
+!docs/
+!docs/*.pdf
+!assets/
+!assets/*.png
+!assets/*.jpg
+!README.md
+!LICENSE

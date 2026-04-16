@@ -1,0 +1,277 @@
+/* =========================================================
+   Restaurant Ordering Database - Schema Definition
+   Tables: CUSTOMER, STAFF, MENUITEM, ORDERS, ORDERDETAIL
+   ========================================================= */
+
+-- Optional: make date output readable
+ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD HH24:MI:SS';
+
+-- =========================
+-- 1. DROP EXISTING OBJECTS (Safe Re-run)
+-- =========================
+BEGIN EXECUTE IMMEDIATE 'DROP VIEW V_ORDER_RECEIPT'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_ORDERDETAIL_TOTAL_CT'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_ORDERDETAIL_BI'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_ORDERS_BI'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_MENUITEM_BI'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_STAFF_BI'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_CUSTOMER_BI'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE ORDERDETAIL CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE ORDERS CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE MENUITEM CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAFF CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE CUSTOMER CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_CUSTOMER'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_STAFF'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_MENUITEM'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_ORDERS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+-- =========================
+-- 2. SEQUENCES
+-- =========================
+CREATE SEQUENCE SEQ_CUSTOMER START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_STAFF    START WITH 100 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_MENUITEM START WITH 1000 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_ORDERS   START WITH 5000 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+-- =========================
+-- 3. TABLES & CONSTRAINTS
+-- =========================
+
+CREATE TABLE CUSTOMER (
+  cust_id            NUMBER(10)      NOT NULL,
+  name               VARCHAR2(100)   NOT NULL,
+  phone              VARCHAR2(20),
+  um_student_id      VARCHAR2(20),
+  membership_status  VARCHAR2(20),
+
+  CONSTRAINT PK_CUSTOMER PRIMARY KEY (cust_id),
+  CONSTRAINT UQ_CUSTOMER_UM UNIQUE (um_student_id),
+
+  -- Business rules for validation
+  CONSTRAINT CK_CUSTOMER_MEMBERSHIP CHECK (membership_status IN ('Active','Inactive')),
+  CONSTRAINT CK_CUSTOMER_PHONE CHECK (phone IS NULL OR REGEXP_LIKE(phone, '^\+?[0-9\-]{7,20}$')),
+  CONSTRAINT CK_CUSTOMER_UMFMT CHECK (um_student_id IS NULL OR REGEXP_LIKE(um_student_id, '^UM[0-9]{7}$'))
+);
+
+CREATE TABLE STAFF (
+  staff_id  NUMBER(10)     NOT NULL,
+  name      VARCHAR2(100)  NOT NULL,
+  role      VARCHAR2(20),
+  shift     VARCHAR2(20),
+  salary    NUMBER(8,2),
+
+  CONSTRAINT PK_STAFF PRIMARY KEY (staff_id),
+  CONSTRAINT CK_STAFF_ROLE  CHECK (role IN ('Boss','Cashier','Cook')),
+  CONSTRAINT CK_STAFF_SHIFT CHECK (shift IN ('morning','afternoon','evening')),
+  CONSTRAINT CK_STAFF_SALARY CHECK (salary IS NULL OR salary >= 0)
+);
+
+CREATE TABLE MENUITEM (
+  item_id       NUMBER(10)     NOT NULL,
+  name          VARCHAR2(100)  NOT NULL,
+  category      VARCHAR2(50),
+  price         NUMBER(5,2)    NOT NULL,
+  is_available  CHAR(1)        DEFAULT 'Y' NOT NULL,
+  daily_special CHAR(1)        DEFAULT 'N' NOT NULL,
+
+  CONSTRAINT PK_MENUITEM PRIMARY KEY (item_id),
+  CONSTRAINT UQ_MENUITEM_NAME UNIQUE (name),
+  CONSTRAINT CK_MENUITEM_PRICE CHECK (price >= 0),
+  CONSTRAINT CK_MENUITEM_AVAIL CHECK (is_available IN ('Y','N')),
+  CONSTRAINT CK_MENUITEM_SPECIAL CHECK (daily_special IN ('Y','N'))
+);
+
+CREATE TABLE ORDERS (
+  order_id      NUMBER(10)     NOT NULL,
+  order_time    DATE           DEFAULT SYSDATE NOT NULL,
+  order_type    VARCHAR2(10)   NOT NULL,
+  total_amount  NUMBER(8,2)    DEFAULT 0 NOT NULL,
+  cust_id       NUMBER(10)     NOT NULL,
+  staff_id      NUMBER(10)     NOT NULL,
+
+  CONSTRAINT PK_ORDERS PRIMARY KEY (order_id),
+  CONSTRAINT CK_ORDERS_TYPE CHECK (order_type IN ('dine-in','takeaway')),
+  CONSTRAINT CK_ORDERS_TOTAL CHECK (total_amount >= 0),
+
+  CONSTRAINT FK_ORDERS_CUSTOMER FOREIGN KEY (cust_id) REFERENCES CUSTOMER(cust_id),
+  CONSTRAINT FK_ORDERS_STAFF    FOREIGN KEY (staff_id) REFERENCES STAFF(staff_id)
+);
+
+CREATE TABLE ORDERDETAIL (
+  order_id    NUMBER(10)   NOT NULL,
+  item_id     NUMBER(10)   NOT NULL,
+  quantity    NUMBER(3)    NOT NULL,
+  unit_price  NUMBER(5,2)  NOT NULL,
+
+  CONSTRAINT PK_ORDERDETAIL PRIMARY KEY (order_id, item_id),
+  CONSTRAINT FK_OD_ORDER FOREIGN KEY (order_id) REFERENCES ORDERS(order_id),
+  CONSTRAINT FK_OD_ITEM  FOREIGN KEY (item_id)  REFERENCES MENUITEM(item_id),
+
+  CONSTRAINT CK_OD_QTY CHECK (quantity > 0),
+  CONSTRAINT CK_OD_UNIT_PRICE CHECK (unit_price >= 0)
+);
+
+-- =========================
+-- 4. INDEXES
+-- =========================
+CREATE INDEX IDX_ORDERS_CUST ON ORDERS(cust_id);
+CREATE INDEX IDX_ORDERS_STAFF ON ORDERS(staff_id);
+CREATE INDEX IDX_OD_ITEM ON ORDERDETAIL(item_id);
+
+-- =========================
+-- 5. TRIGGERS
+-- =========================
+
+-- Auto-generate IDs using sequences
+CREATE OR REPLACE TRIGGER TRG_CUSTOMER_BI
+BEFORE INSERT ON CUSTOMER
+FOR EACH ROW
+BEGIN
+  IF :NEW.cust_id IS NULL THEN
+    :NEW.cust_id := SEQ_CUSTOMER.NEXTVAL;
+  END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_STAFF_BI
+BEFORE INSERT ON STAFF
+FOR EACH ROW
+BEGIN
+  IF :NEW.staff_id IS NULL THEN
+    :NEW.staff_id := SEQ_STAFF.NEXTVAL;
+  END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_MENUITEM_BI
+BEFORE INSERT ON MENUITEM
+FOR EACH ROW
+BEGIN
+  IF :NEW.item_id IS NULL THEN
+    :NEW.item_id := SEQ_MENUITEM.NEXTVAL;
+  END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_ORDERS_BI
+BEFORE INSERT ON ORDERS
+FOR EACH ROW
+BEGIN
+  IF :NEW.order_id IS NULL THEN
+    :NEW.order_id := SEQ_ORDERS.NEXTVAL;
+  END IF;
+  -- Baseline non-negative total mount
+  IF :NEW.total_amount IS NULL THEN
+    :NEW.total_amount := 0;
+  END IF;
+END;
+/
+
+-- Auto-fill unit_price from MENUITEM if user inserts NULL
+CREATE OR REPLACE TRIGGER TRG_ORDERDETAIL_BI
+BEFORE INSERT ON ORDERDETAIL
+FOR EACH ROW
+DECLARE
+  v_price MENUITEM.price%TYPE;
+  v_avail MENUITEM.is_available%TYPE;
+BEGIN
+  SELECT price, is_available INTO v_price, v_avail
+  FROM MENUITEM
+  WHERE item_id = :NEW.item_id;
+
+  IF v_avail = 'N' THEN
+    RAISE_APPLICATION_ERROR(-20001, 'Cannot order an unavailable item.');
+  END IF;
+
+  IF :NEW.unit_price IS NULL THEN
+    :NEW.unit_price := v_price;
+  END IF;
+END;
+/
+
+-- Maintain ORDERS.total_amount automatically using Compound Trigger
+CREATE OR REPLACE TRIGGER TRG_ORDERDETAIL_TOTAL_CT
+FOR INSERT OR UPDATE OR DELETE ON ORDERDETAIL
+COMPOUND TRIGGER
+  TYPE t_order_ids IS TABLE OF NUMBER INDEX BY PLS_INTEGER;
+  g_ids t_order_ids;
+  g_count PLS_INTEGER := 0;
+
+  PROCEDURE add_id(p_id NUMBER) IS
+  BEGIN
+    g_count := g_count + 1;
+    g_ids(g_count) := p_id;
+  END;
+
+  AFTER EACH ROW IS
+  BEGIN
+    IF INSERTING OR UPDATING THEN
+      add_id(:NEW.order_id);
+    ELSIF DELETING THEN
+      add_id(:OLD.order_id);
+    END IF;
+  END AFTER EACH ROW;
+
+  AFTER STATEMENT IS
+  BEGIN
+    FOR i IN 1..g_count LOOP
+      UPDATE ORDERS o
+      SET o.total_amount =
+        NVL( (SELECT SUM(od.quantity * od.unit_price)
+              FROM ORDERDETAIL od
+              WHERE od.order_id = o.order_id), 0 )
+      WHERE o.order_id = g_ids(i);
+    END LOOP;
+  END AFTER STATEMENT;
+END;
+/
+
+-- =========================
+-- 6. VIEWS
+-- =========================
+
+CREATE OR REPLACE VIEW V_DAILY_SALES AS 
+SELECT TRUNC(order_time) AS sales_date,
+       COUNT(*) AS total_orders,
+       SUM(total_amount) AS total_revenue
+FROM ORDERS
+GROUP BY TRUNC(order_time);
+
+CREATE OR REPLACE VIEW V_ORDER_RECEIPT AS
+SELECT
+  o.order_id,
+  o.order_time,
+  o.order_type,
+  c.name AS customer_name,
+  s.name AS staff_name,
+  m.name AS item_name,
+  od.quantity,
+  od.unit_price,
+  (od.quantity * od.unit_price) AS line_total,
+  o.total_amount
+FROM ORDERS o
+JOIN CUSTOMER c ON c.cust_id = o.cust_id
+JOIN STAFF s ON s.staff_id = o.staff_id
+JOIN ORDERDETAIL od ON od.order_id = o.order_id
+JOIN MENUITEM m ON m.item_id = od.item_id;
+
+PROMPT === DDL completed successfully. ===
