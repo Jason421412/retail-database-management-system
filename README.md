@@ -1,92 +1,110 @@
 # Restaurant Operations Database System
 
-## Entity Relationship Diagram
+An Oracle SQL database system for restaurant order processing, billing validation, inventory checks, and operational reporting.
 
-The following ERD summarizes the core entities and relationships implemented in this database system.
+## Why I Built This
+
+Restaurant ordering systems need reliable data rules: staff should not be able to sell unavailable items, historical bills should not change when menu prices change later, and order totals should match the actual line items. This project models those business rules directly in the relational database rather than leaving all validation to application code.
+
+## Features
+
+- Normalized schema for customers, staff, menu items, orders, and order details.
+- Foreign-key relationships for transaction integrity.
+- Oracle sequences for primary-key generation.
+- Check constraints for phone numbers, identifiers, and controlled values.
+- Trigger to prevent ordering unavailable menu items.
+- Trigger logic to lock historical unit prices into order details.
+- Compound trigger to recalculate order totals after order-detail changes.
+- Reporting views for order receipts and daily sales summaries.
+- Seed data and query files for validating the schema behavior.
+- ERD and supporting project documentation.
+
+## Tech Stack
+
+- **Database:** Oracle SQL
+- **Database programming:** PL/SQL triggers, compound triggers, sequences, constraints, views
+- **Modeling:** Relational schema design, normalization, many-to-many order-detail modeling
+- **Tools:** Oracle SQL Developer, Oracle APEX, SQL*Plus, or any compatible Oracle SQL environment
+
+## Architecture / System Design
+
+```text
+sql/schema.sql
+  -> sequences
+  -> tables and constraints
+  -> triggers
+  -> reporting views
+
+sql/seed.sql
+  -> sample customers, staff, menu items, orders, and order details
+
+sql/queries.sql
+  -> validation queries and reporting checks
+```
+
+- **Schema:** Five core entities model the operational flow: `CUSTOMER`, `STAFF`, `MENUITEM`, `ORDERS`, and `ORDERDETAIL`.
+- **Business logic:** Database triggers enforce availability checks, historical prices, and order-total recalculation.
+- **Reporting:** Views such as `V_ORDER_RECEIPT` and `V_DAILY_SALES` expose joined data for receipt and sales analysis.
+- **Storage:** All business data is stored in Oracle relational tables. No application backend is included in this repository.
+- **Deployment:** The SQL files are intended to be run in sequence inside an Oracle-compatible database environment.
+
+## My Contributions
+
+- Designed and organized the normalized relational schema.
+- Implemented constraints for data integrity and controlled formats.
+- Built trigger logic for unavailable-item prevention and historical unit pricing.
+- Implemented compound-trigger behavior to keep order totals synchronized with order details.
+- Split the project into schema, seed, and query files for clearer review.
+- Added ERD and documentation assets for portfolio presentation.
+
+## What I Learned
+
+- How to move important business rules closer to the data layer.
+- How compound triggers help avoid Oracle mutating-table issues during aggregate updates.
+- Why historical transaction data should store the price used at purchase time.
+- How schema design, constraints, sample data, and validation queries work together to prove database behavior.
+
+## Screenshots / Demo
 
 ![Entity Relationship Diagram](assets/erd.png)
 
-## Overview
-A comprehensive relational database system engineered to manage and automate daily restaurant operations, including order processing, item tracking, and automated billing calculations. Built using Oracle SQL, this project demonstrates advanced schema design, data integrity enforcement, and automated transaction logic.
+Additional evidence included:
 
-## Business Problem / Scenario
-High-traffic hospitality businesses require robust back-end systems to track `Customers`, `Staff`, `Menu Items`, and dynamic `Orders`. 
-The core challenges solved by this architecture include:
-- **Billing Integrity:** Guaranteeing that the total bill is always exactly equal to the mathematical sum of individual ordered items, calculated entirely server-side.
-- **Data Prevention:** Blocking cashiers from mistakenly processing out-of-stock items at the transaction layer.
-- **Identity Tracking:** Managing both registered loyalty members and transient customers without data duplication.
+- `assets/architecture-poster.png`
+- `docs/Database_Design_Report.pdf`
+- `docs/Presentation_Slides.pdf`
 
-## Key Features
-- **Relational Integrity:** Enforced foreign key constraints mapping staff, customers, and complex many-to-many order relations.
-- **Automated Triggers:** 
-  - Implementation of Oracle Compound Triggers to instantly recalculate an `ORDER` total amount whenever an `ORDERDETAIL` line item is added, updated, or removed, avoiding the "mutating table" error.
-  - Pre-insert triggers that lock-in historical unit prices, ensuring future menu price updates don't alter legacy receipts.
-- **Identity Sequences:** Automated sequence generation for collision-free Primary Keys.
-- **Data Validation:** Advanced Regex `CHECK` constraints enforcing phone number formats and specific organizational IDs.
-- **Reporting Views:** Consolidated reporting layers (`V_ORDER_RECEIPT` and `V_DAILY_SALES`) that join multiple tables into formatted outputs.
+Evidence to add later:
 
-## Technology Stack
-- **Database Engine:** Oracle SQL (11g/12c/19c compatible)
-- **Key Concepts:** DDL, DML, Relational Data Modeling, Compound Triggers, Identity Sequences, Regex Constraints, Views.
+- Screenshots from SQL Developer or APEX showing validation errors and reporting views.
+- A short walkthrough of running `schema.sql`, `seed.sql`, and `queries.sql`.
 
-## Database Design Summary
-The architecture operates on five normalized core tables:
-1. `CUSTOMER` - Tracks client details, contact information, and loyalty status.
-2. `STAFF` - Tracks employees, designated roles, and shift assignments.
-3. `MENUITEM` - The centralized inventory, categorizations, and price lists.
-4. `ORDERS` - The primary transaction bridge tying the Customer and Staff to an event.
-5. `ORDERDETAIL` - The junction tracking individual line items mapped to a specific order.
+## Setup
 
-## Repository Structure
-```text
-retail-database-management-system/
-├── README.md               # Project documentation
-├── .gitignore              # Dependency and OS file exclusions
-├── LICENSE                 # Repository licensing
-├── docs/                   
-│   ├── Database_Design_Report.pdf  # Business logic and design decisions
-│   └── Presentation_Slides.pdf     # High-level architecture presentation
-├── assets/                 
-│   └── erd.png             # Entity Relationship Diagram visualization
-└── sql/                    
-    ├── schema.sql          # Database structure, constraints, views, and triggers
-    ├── seed.sql            # Sample data generation and validation
-    └── queries.sql         # Test cases, reporting, and integrity checks
-```
+1. Clone the repository.
 
-## Setup and Usage Instructions
-To deploy this database on any Oracle SQL compliant environment (such as Oracle APEX, SQL Developer, or SQL*Plus):
+   ```bash
+   git clone https://github.com/Jason421412/retail-database-management-system.git
+   cd retail-database-management-system
+   ```
 
-1. **Initialize the Schema:** Run `sql/schema.sql` first. This establishes sequences, tables, constraints, analytical views, and triggers.
-2. **Populate Data:** Run `sql/seed.sql` to populate the environment with mock staff, customers, menu items, and realistic rolling order data.
-3. **Verify Constraints:** Run `sql/queries.sql` to execute tests on the business logic and ensure the triggers successfully stop illegal operations.
+2. Open an Oracle SQL environment such as Oracle SQL Developer, Oracle APEX, or SQL*Plus.
 
-## Example Queries / Testing
-**Validation Test:** Prevent staff from accidentally submitting an order for an out-of-stock item (`is_available = 'N'`).
-```sql
--- Attempting to order an 'Expired Sandwich' (Item 1004)
-INSERT INTO ORDERDETAIL (order_id, item_id, quantity, unit_price)
-VALUES (5000, 1004, 1, NULL);
-```
-**Expected Output Event:**
-```text
-ORA-20001: Cannot order an unavailable item.
-ORA-06512: at "TRG_ORDERDETAIL_BI", line 9
-```
-*Result: The database intercept engine aggressively stops bad data entry before it reaches the core tables.*
+3. Run the files in this order:
 
-## What I Contributed
-*Note: The foundational business scenario and initial specifications were originally conceptualized collaboratively within a team. For this independent portfolio presentation:*
-- I orchestrated the final **schema architecture and table normalization**.
-- I engineered the advanced **Compound Triggers** to solve sequence aggregation issues and enforced the regex data constraints.
-- I meticulously refactored and audited the original codebase into clean, modular SQL files to demonstrate production-ready database deployment standards, independent of the original academic scope.
+   ```text
+   sql/schema.sql
+   sql/seed.sql
+   sql/queries.sql
+   ```
 
-## Learning Outcomes
-- Advanced understanding of **automating state** strictly within relational databases instead of relying on unpredictable front-end application logic.
-- Practical mastery of **Compound Triggers** in Oracle to solve the notorious "mutating table" error during aggregation logic changes.
-- Practical experience normalizing unorganized data into optimized, indexable junction tables.
+4. Review the validation queries and reporting views to confirm the expected behavior.
 
 ## Future Improvements
-- **Security & Roles:** Implement distinct User Roles (e.g., `APP_CASHIER`, `APP_ADMIN`) with strict grants restricting raw `DROP` and `UPDATE` capabilities.
-- **Stored Procedures:** Wrap the ordering logic into secure PL/SQL stored procedures (`p_place_order`) instead of relying on external inserts.
-- **Scaling Analytics:** Add window functions to generate expansive end-of-month financial reports dynamically.
+
+- Add stored procedures for placing orders through a safer database API.
+- Add role-based grants for cashier, manager, and admin access.
+- Add indexes for high-volume lookup and reporting queries.
+- Add more reporting views for monthly sales, inventory movement, and staff performance.
+- Add automated SQL test scripts for trigger and constraint behavior.
+- Add Docker or documented Oracle XE setup for easier local review.
